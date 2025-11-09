@@ -1,0 +1,3 @@
+minute,avg_temp,avg_humidity,temp_alert,humidity_alert
+2025-10-15 01:06:00,24.985,48.807500000000005,No,No
+2025-10-15 01:07:00,29.49,56.09,No,Yes
