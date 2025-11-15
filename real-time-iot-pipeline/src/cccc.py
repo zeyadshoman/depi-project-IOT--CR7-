@@ -6,8 +6,8 @@ import requests
 
 # --- CONFIGURATION ---
 POWER_BI_URL = "https://api.powerbi.com/beta/2082de46-1afa-4b64-a440-6558f80e9840/datasets/12ca1e37-95a7-4ce1-826f-c2141c2fc60c/rows?experience=power-bi&key=pDybOBTaxgs0lT9qRqZem4A%2FUzTzqr4NVshzAZA%2F7AKcQ1OIgwnR8mqe5RJccnliXpAQQAVgK%2B%2B59y2f9LqVcA%3D%3D"  # Replace this
-SERVER = "localhost"
-DATABASE = "protr1"
+SERVER = "DESKTOP-OQDQ9FN"
+DATABASE = "DepiProject"
 
 # --- Function to generate random data ---
 def generate_data():
