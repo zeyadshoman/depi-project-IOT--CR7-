@@ -6,6 +6,8 @@ import random
 import time
 from datetime import datetime, timezone
 import pyodbc
+import csv
+import os
 
 # ----------------------------------------------------------
 #  CONFIGURATION
@@ -18,6 +20,15 @@ SQL_CONN_STR = (
     "Database=DepiProject_cr7;"
     "Trusted_Connection=yes;"
 )
+
+# CSV Configuration
+CSV_FILENAME = "weather_station_data.csv"
+CSV_HEADERS = [
+    "Timestamp", "DeviceID", "DeviceType", "Governorate", "City", "Zone",
+    "Temperature_C", "Humidity_pct", "WindSpeed_kmh", "WindDirection",
+    "Rainfall_mm", "CloudCoverage_pct", "UV_Index", "Pressure_hPa",
+    "Battery_pct", "AlertLevel", "AlertType", "Advisory"
+]
 
 # ----------------------------------------------------------
 #  EGYPT LOCATIONS FULL LIST
@@ -98,6 +109,29 @@ ZONES_MAP = {  "Cairo": ["Rooftop", "Balcony", "Indoor"],
 DEVICE_TYPES = ["Weather Station Pro", "Weather Station Basic", "Outdoor Sensor", "Smart Sensor"]
 
 # ----------------------------------------------------------
+#  CSV FILE INITIALIZATION
+# ----------------------------------------------------------
+def initialize_csv():
+    """Create CSV file with headers if it doesn't exist"""
+    if not os.path.exists(CSV_FILENAME):
+        with open(CSV_FILENAME, mode='w', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=CSV_HEADERS)
+            writer.writeheader()
+            print(f"📄 Created new CSV file: {CSV_FILENAME}")
+    else:
+        print(f"📄 Using existing CSV file: {CSV_FILENAME}")
+
+def save_to_csv(record):
+    """Append record to CSV file"""
+    try:
+        with open(CSV_FILENAME, mode='a', newline='', encoding='utf-8') as file:
+            writer = csv.DictWriter(file, fieldnames=CSV_HEADERS)
+            writer.writerow(record)
+        print(f"💾 Record saved to CSV: {record['Timestamp']} - {record['DeviceID']}")
+    except Exception as e:
+        print(f"❌ CSV Error: {e}")
+
+# ----------------------------------------------------------
 #  SENSOR DATA GENERATION
 # ----------------------------------------------------------
 def generate_weather_data():
@@ -176,64 +210,97 @@ END
 connection.commit()
 
 # ----------------------------------------------------------
+#  INITIALIZE CSV FILE
+# ----------------------------------------------------------
+initialize_csv()
+
+# ----------------------------------------------------------
 #  MAIN STREAMING LOOP
 # ----------------------------------------------------------
-print("🌦️ Streaming Professional Weather Data to SQL + Power BI ...")
+print("🌦️ Streaming Professional Weather Data to SQL + Power BI + CSV ...")
+print("=" * 60)
 
-while True:
-    temp, hum, wind, wind_dir, rain, cloud, uv, pressure, battery = generate_weather_data()
-    alert_level, alert_type = analyze_alerts(temp, hum, wind, rain, pressure, uv)
-    advisory = advisory_text(alert_type)
+try:
+    while True:
+        # Generate weather data
+        temp, hum, wind, wind_dir, rain, cloud, uv, pressure, battery = generate_weather_data()
+        alert_level, alert_type = analyze_alerts(temp, hum, wind, rain, pressure, uv)
+        advisory = advisory_text(alert_type)
 
-    # اختيار محافظة ومدينة عشوائية
-    selected_location = random.choice(EGYPT_LOCATIONS)
+        # Select random location
+        selected_location = random.choice(EGYPT_LOCATIONS)
 
-    # اختيار Zone عشوائي حسب المحافظة
-    zones = ZONES_MAP.get(selected_location["governorate"], ["Rooftop"])
-    selected_zone = random.choice(zones)
+        # Select random zone based on governorate
+        zones = ZONES_MAP.get(selected_location["governorate"], ["Rooftop"])
+        selected_zone = random.choice(zones)
 
-    # اختيار DeviceType عشوائي
-    device_type = random.choice(DEVICE_TYPES)
+        # Select random device type
+        device_type = random.choice(DEVICE_TYPES)
 
-    record = {
-        "Timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
-        "DeviceID": selected_location["device_id"],
-        "DeviceType": device_type,
-        "Governorate": selected_location["governorate"],
-        "City": selected_location["city"],
-        "Zone": selected_zone,
-        "Temperature_C": temp,
-        "Humidity_pct": hum,
-        "WindSpeed_kmh": wind,
-        "WindDirection": wind_dir,
-        "Rainfall_mm": rain,
-        "CloudCoverage_pct": cloud,
-        "UV_Index": uv,
-        "Pressure_hPa": pressure,
-        "Battery_pct": battery,
-        "AlertLevel": alert_level,
-        "AlertType": alert_type,
-        "Advisory": advisory
-    }
+        # Create record
+        record = {
+            "Timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S"),
+            "DeviceID": selected_location["device_id"],
+            "DeviceType": device_type,
+            "Governorate": selected_location["governorate"],
+            "City": selected_location["city"],
+            "Zone": selected_zone,
+            "Temperature_C": temp,
+            "Humidity_pct": hum,
+            "WindSpeed_kmh": wind,
+            "WindDirection": wind_dir,
+            "Rainfall_mm": rain,
+            "CloudCoverage_pct": cloud,
+            "UV_Index": uv,
+            "Pressure_hPa": pressure,
+            "Battery_pct": battery,
+            "AlertLevel": alert_level,
+            "AlertType": alert_type,
+            "Advisory": advisory
+        }
 
-    # SEND TO POWER BI
-    requests.post(POWER_BI_URL, json=[record])
+        # 1. SAVE TO CSV FILE
+        save_to_csv(record)
 
-    # INSERT INTO SQL
-    try:
-        cursor.execute("""
-            INSERT INTO WeatherStation_Pro VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        """,
-            record["Timestamp"], record["DeviceID"], record["DeviceType"],
-            record["Governorate"], record["City"], record["Zone"],
-            record["Temperature_C"], record["Humidity_pct"], record["WindSpeed_kmh"],
-            record["WindDirection"], record["Rainfall_mm"], record["CloudCoverage_pct"],
-            record["UV_Index"], record["Pressure_hPa"], record["Battery_pct"],
-            record["AlertLevel"], record["AlertType"], record["Advisory"]
-        )
-        connection.commit()
-    except Exception as e:
-        print("SQL Error:", e)
+        # 2. SEND TO POWER BI
+        try:
+            response = requests.post(POWER_BI_URL, json=[record])
+            if response.status_code == 200:
+                print(f"📊 Sent to Power BI: {record['Timestamp']}")
+            else:
+                print(f"⚠️ Power BI Error: {response.status_code}")
+        except Exception as e:
+            print(f"❌ Power BI Connection Error: {e}")
 
-    print(record)
-    time.sleep(2)
+        # 3. INSERT INTO SQL DATABASE
+        try:
+            cursor.execute("""
+                INSERT INTO WeatherStation_Pro VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+                record["Timestamp"], record["DeviceID"], record["DeviceType"],
+                record["Governorate"], record["City"], record["Zone"],
+                record["Temperature_C"], record["Humidity_pct"], record["WindSpeed_kmh"],
+                record["WindDirection"], record["Rainfall_mm"], record["CloudCoverage_pct"],
+                record["UV_Index"], record["Pressure_hPa"], record["Battery_pct"],
+                record["AlertLevel"], record["AlertType"], record["Advisory"]
+            )
+            connection.commit()
+            print(f"🗄️  Saved to SQL: {record['DeviceID']} - {record['City']}")
+        except Exception as e:
+            print(f"❌ SQL Error: {e}")
+
+        # Display current record summary
+        print(f"📍 {record['Governorate']} - {record['City']} | 🌡️ {temp}°C | 💧 {hum}% | ⚠️ {alert_type}")
+        print("-" * 60)
+
+        # Wait before next iteration
+        time.sleep(2)
+
+except KeyboardInterrupt:
+    print("\n🛑 Streaming stopped by user")
+finally:
+    # Clean up SQL connection
+    cursor.close()
+    connection.close()
+    print("🔌 Database connection closed")
+    print(f"📁 All data saved to: {CSV_FILENAME}")
