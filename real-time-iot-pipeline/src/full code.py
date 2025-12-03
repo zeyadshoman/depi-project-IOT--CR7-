@@ -16,11 +16,11 @@ POWER_BI_URL = "https://api.powerbi.com/beta/2082de46-1afa-4b64-a440-6558f80e984
 
 SQL_CONN_STR = (
    "Driver={ODBC Driver 17 for SQL Server};"
-    "Server=DESKTOP-OQDQ9FN;"
-    "Database=DepiProject_cr7;"
-    "Trusted_Connection=yes;"
+  "Server=team4iotproject.database.windows.net;"
+    "Database=Depi_Project1;"
+    "Uid=team4iotproject;"
+    "Pwd=team4444#;"
 )
-
 # CSV Configuration
 CSV_FILENAME = "weather_station_data.csv"
 CSV_HEADERS = [
@@ -304,3 +304,4 @@ finally:
     connection.close()
     print("🔌 Database connection closed")
     print(f"📁 All data saved to: {CSV_FILENAME}")
+    
